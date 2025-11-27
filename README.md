@@ -1,73 +1,62 @@
-# Welcome to your Lovable project
+# 🛒 Teka Somba — Marketplace RDC (React + Supabase)
 
-## Project info
+Teka Somba est une plateforme web moderne permettant aux utilisateurs de RDC (et diaspora) d’acheter, vendre et publier des annonces locales.  
+Projet développé en **React + Vite**, **Supabase**, **Tailwind CSS**, **shadcn-ui** et supportant les **PWA**.
 
-**URL**: https://lovable.dev/projects/1e688203-4894-4247-9020-e99c6a83326b
+---
 
-## How can I edit this code?
+## 🚀 Fonctionnalités principales
 
-There are several ways of editing your application.
+### ✅ Authentification & Profils
+- Inscription / connexion avec email & mot de passe  
+- Sélection du **pays & indicatif international** (avec drapeaux emoji)  
+- Stockage des informations dans Supabase `auth.users`  
+- **Création automatique du profil** lors de la première connexion  
+- Stockage des données profil dans `public.profiles` :
+  - Nom complet  
+  - Numéro WhatsApp  
+  - Type de compte (particulier / professionnel)  
+  - Champs extensibles (ville, pays, avatar, badge pro…)
 
-**Use Lovable**
+### 🛍️ Annonces & Marketplace
+- Création d’annonce avec :
+  - Titre  
+  - Description  
+  - Prix  
+  - Devise (CDF / USD)  
+  - Catégorie  
+  - Condition (neuf, bon état…)  
+  - Photos (upload Supabase Storage)  
+- Affichage dynamique des annonces sur la page d’accueil  
+- Filtre : catégorie, ville, recherche texte  
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/1e688203-4894-4247-9020-e99c6a83326b) and start prompting.
+### 📸 Upload & Stockage Supabase
+- Upload multiple (max 4 photos)  
+- Bucket `product-photos`  
+- Règles RLS sécurisées  
+- Génération d’URL publiques automatiques  
 
-Changes made via Lovable will be committed automatically to this repo.
+### 💬 Contact vendeur
+- Bouton **Contacter via WhatsApp**  
+- Message pré-rempli incluant le titre de l’annonce  
+- Format international du numéro  
+- Compatible mobile & WhatsApp Web  
 
-**Use your preferred IDE**
+---
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## 🧱 Stack Technique
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+| Technologie | Utilisation |
+|------------|-------------|
+| **React + Vite** | Interface rapide & performante |
+| **TypeScript** | Typage strict & fiabilité |
+| **Supabase (Auth, Database, Storage)** | Backend complet |
+| **Tailwind CSS** | Design moderne et responsive |
+| **shadcn-ui** | Composants UI élégants |
+| **Lucide Icons** | Icônes légères et belles |
+| **PWA-ready** | Rapidité et installation mobile |
 
-Follow these steps:
+---
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## 📦 Structure du projet
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/1e688203-4894-4247-9020-e99c6a83326b) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
