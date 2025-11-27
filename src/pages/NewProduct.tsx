@@ -1,4 +1,9 @@
-import { useState, useEffect } from "react";
+import {
+  useState,
+  useEffect,
+  FormEvent,
+  ChangeEvent,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/Navbar";
@@ -37,30 +42,41 @@ interface Category {
   name: string;
 }
 
+interface ProductFormData {
+  title: string;
+  description: string;
+  price: string;
+  currency: "CDF" | "USD";
+  condition: "neuf" | "comme neuf" | "bon état" | "à retaper";
+  location_city: string;
+  category_id: string;
+}
+
 const NewProduct = () => {
   const navigate = useNavigate();
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ProductFormData>({
     title: "",
     description: "",
     price: "",
-    currency: "CDF" as "CDF" | "USD",
-    condition: "bon état" as "neuf" | "comme neuf" | "bon état" | "à retaper",
+    currency: "CDF",
+    condition: "bon état",
     location_city: "",
     category_id: "",
   });
 
-  // état pour les photos (on branchera l’UI juste après)
+  // État pour les photos
   const [photoFiles, setPhotoFiles] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (!session) {
+    supabase.auth.getSession().then(({ data }) => {
+      const currentSession = data.session;
+      setSession(currentSession);
+      if (!currentSession) {
         toast.error("Vous devez être connecté pour poster une annonce");
         navigate("/auth");
       }
@@ -68,161 +84,163 @@ const NewProduct = () => {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (!session) {
+    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+      if (!newSession) {
         navigate("/auth");
       }
     });
 
     loadCategories();
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [navigate]);
 
   const loadCategories = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("categories")
       .select("id, name")
       .order("name");
 
+    if (error) {
+      console.error("Erreur chargement catégories :", error);
+      toast.error("Impossible de charger les catégories");
+      return;
+    }
+
     setCategories(data || []);
   };
-    const uploadPhotos = async (files: File[]) => {
-    if (!files || files.length === 0) return [];
+
+  // Upload des photos vers Supabase Storage
+  const uploadPhotos = async (files: File[]) => {
+    if (!files || files.length === 0) {
+      console.log("uploadPhotos: aucun fichier reçu");
+      return [];
+    }
 
     const uploadedUrls: string[] = [];
 
     for (const file of files) {
+      console.log(
+        "uploadPhotos: start upload",
+        file.name,
+        file.size,
+        file.type
+      );
+
       const ext = file.name.split(".").pop();
       const fileName = `${Date.now()}-${Math.random()
         .toString(36)
         .slice(2)}.${ext}`;
+      const filePath = `products/${fileName}`;
 
-      const { data, error } = await supabase.storage
+      const { data, error: uploadError } = await supabase.storage
         .from("product-photos")
-        .upload(fileName, file);
+        .upload(filePath, file);
 
-      if (error) {
-        console.error("Erreur upload photo", error);
-        toast.error("Une photo n’a pas pu être envoyée");
+      if (uploadError) {
+        console.error("Erreur upload photo :", uploadError);
+        toast.error("Upload photo impossible : " + uploadError.message);
         continue;
       }
 
+      console.log("uploadPhotos: upload OK, filePath =", filePath, "data =", data);
+
       const { data: publicData } = supabase.storage
         .from("product-photos")
-        .getPublicUrl(data.path);
+        .getPublicUrl(filePath);
+
+      console.log("uploadPhotos: public URL =", publicData);
 
       if (publicData?.publicUrl) {
         uploadedUrls.push(publicData.publicUrl);
       }
     }
 
+    console.log("uploadPhotos: uploadedUrls =", uploadedUrls);
     return uploadedUrls;
   };
 
-  // ✅ une seule fonction handleSubmit
-  const handleSubmit = async (e: any) => {
-  e.preventDefault();
+  // Submit du formulaire
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
 
-  if (!session) {
-    toast.error("Vous devez être connecté");
-    return;
-  }
+    if (!session) {
+      toast.error("Vous devez être connecté");
+      return;
+    }
 
-  setLoading(true);
+    setLoading(true);
 
-  try {
-    // 1. Validation des champs texte
-    const validatedData = productSchema.parse({
-      ...formData,
-      price: parseFloat(formData.price),
-    });
+    try {
+      console.log(
+        "handleSubmit: nb de photos à uploader =",
+        photoFiles.length,
+        photoFiles
+      );
 
-    // 2. Upload des photos dans Supabase Storage
-    //    (bucket à créer plus tard : "product-photos")
-    let photoUrls: string[] = [];
+      // Validation des champs texte
+      const validatedData = productSchema.parse({
+        ...formData,
+        price: parseFloat(formData.price),
+      });
 
-    if (photoFiles.length > 0) {
-      const uploadedUrls: string[] = [];
+      // Upload des photos via la fonction uploadPhotos
+      const photoUrls = await uploadPhotos(photoFiles);
 
-      for (const file of photoFiles) {
-        const ext = file.name.split(".").pop();
-        const fileName = `${session.user.id}-${Date.now()}-${Math.random()
-          .toString(36)
-          .slice(2)}.${ext}`;
-        const filePath = `products/${fileName}`;
+      console.log("handleSubmit: photoUrls retournées =", photoUrls);
 
-        const { error: uploadError } = await supabase
-          .storage
-          .from("product-photos")
-          .upload(filePath, file);
+      // Insertion de l’annonce avec les URLs des photos
+      const { data, error } = await supabase
+        .from("products")
+        .insert({
+          title: validatedData.title,
+          description: validatedData.description,
+          price: validatedData.price,
+          location_city: validatedData.location_city,
+          category_id: validatedData.category_id,
+          currency: formData.currency,
+          condition: formData.condition,
+          seller_id: session.user.id,
+          photo_urls: photoUrls,
+        })
+        .select()
+        .single();
 
-        if (uploadError) {
-          console.error(uploadError);
-          toast.error("Impossible d'envoyer certaines photos. L'annonce sera publiée sans ces photos.");
-          continue; // on passe au fichier suivant
-        }
+      if (error) throw error;
 
-        const { data: publicData } = supabase
-          .storage
-          .from("product-photos")
-          .getPublicUrl(filePath);
-
-        if (publicData?.publicUrl) {
-          uploadedUrls.push(publicData.publicUrl);
-        }
+      toast.success("Annonce publiée avec succès !");
+      navigate(`/product/${data.id}`);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        toast.error(error.errors[0].message);
+      } else {
+        console.error(error);
+        toast.error(error.message || "Erreur lors de la publication");
       }
-
-      photoUrls = uploadedUrls;
+    } finally {
+      setLoading(false);
     }
+  };
 
-    // 3. Insertion de l’annonce avec les URLs des photos
-    const { data, error } = await supabase
-      .from("products")
-      .insert({
-        title: validatedData.title,
-        description: validatedData.description,
-        price: validatedData.price,
-        location_city: validatedData.location_city,
-        category_id: validatedData.category_id,
-        currency: formData.currency,
-        condition: formData.condition,
-        seller_id: session.user.id,
-        photo_urls: photoUrls, // IMPORTANT : on enregistre les photos ici
-      })
-      .select()
-      .single();
+  // Gestion des fichiers sélectionnés
+  const handlePhotoChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []); // File[]
 
-    if (error) throw error;
+    console.log("handlePhotoChange: fichiers sélectionnés =", files.length, files);
 
-    toast.success("Annonce publiée avec succès !");
-    navigate(`/product/${data.id}`);
-  } catch (error: any) {
-    if (error instanceof z.ZodError) {
-      toast.error(error.errors[0].message);
-    } else {
-      toast.error(error.message || "Erreur lors de la publication");
-    }
-  } finally {
-    setLoading(false);
-  }
-};
+    // On limite à 4 photos max
+    const newFiles = [...photoFiles, ...files].slice(0, 4);
+    setPhotoFiles(newFiles);
 
-
-  // ✅ fonction séparée pour gérer les fichiers (sans toucher au submit)
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-  const files = Array.from(e.target.files || []);
-
-  // On ajoute les nouvelles photos à celles déjà choisies (max 4)
-  setPhotoFiles((prev) => [...prev, ...files].slice(0, 4));
-
-  setPhotoPreviews((prev) => [
-    ...prev,
-    ...files.map((file) => (window as any).URL.createObjectURL(file)),
-  ].slice(0, 4));
-};
-
+    const newPreviews = [
+      ...photoPreviews,
+      ...files.map((file) => URL.createObjectURL(file)),
+    ].slice(0, 4);
+    setPhotoPreviews(newPreviews);
+  };
 
   const cities = [
     "Kinshasa",
@@ -245,7 +263,7 @@ const NewProduct = () => {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="title">Titre de l'annonce *</Label>
+                <Label htmlFor="title">Titre de l&apos;annonce *</Label>
                 <Input
                   id="title"
                   placeholder="Ex: iPhone 13 Pro en excellent état"
@@ -332,7 +350,9 @@ const NewProduct = () => {
                 <Label htmlFor="condition">État du produit *</Label>
                 <Select
                   value={formData.condition}
-                  onValueChange={(value: any) =>
+                  onValueChange={(
+                    value: ProductFormData["condition"]
+                  ) =>
                     setFormData({ ...formData, condition: value })
                   }
                 >
@@ -369,31 +389,30 @@ const NewProduct = () => {
                 </Select>
               </div>
 
-              {/* on ajoutera ici plus tard l’input de photos + preview */}
+              {/* Photos du produit */}
               <div className="space-y-2">
-  <Label htmlFor="photos">Photos du produit</Label>
-  
-  <Input
-    id="photos"
-    type="file"
-    accept="image/*"
-    multiple
-    onChange={handlePhotoChange}
-  />
+                <Label htmlFor="photos">Photos du produit</Label>
 
-  {/* Aperçu des photos */}
-  <div className="grid grid-cols-3 gap-3 mt-3">
-    {photoPreviews.map((src, index) => (
-      <img
-        key={index}
-        src={src}
-        alt={`preview-${index}`}
-        className="w-full h-24 object-cover rounded-md border"
-      />
-    ))}
-  </div>
-</div>
-      
+                <Input
+                  id="photos"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handlePhotoChange}
+                />
+
+                <div className="grid grid-cols-3 gap-3 mt-3">
+                  {photoPreviews.map((src, index) => (
+                    <img
+                      key={index}
+                      src={src}
+                      alt={`preview-${index}`}
+                      className="w-full h-24 object-cover rounded-md border"
+                    />
+                  ))}
+                </div>
+              </div>
+
               <Button
                 type="submit"
                 className="w-full"
